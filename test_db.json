@@ -1,0 +1,60 @@
+{
+  "tables": [
+    {
+      "name": "DeptTest",
+      "columns": [
+        {
+          "name": "id",
+          "type": 0
+        },
+        {
+          "name": "name",
+          "type": 2
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "IT"
+        ]
+      ],
+      "foreign_keys": []
+    },
+    {
+      "name": "EmpTest",
+      "columns": [
+        {
+          "name": "id",
+          "type": 0
+        },
+        {
+          "name": "name",
+          "type": 2
+        },
+        {
+          "name": "department_id",
+          "type": 0
+        },
+        {
+          "name": "salary",
+          "type": 1
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "John",
+          1,
+          50000.0
+        ]
+      ],
+      "foreign_keys": [
+        {
+          "column": "department_id",
+          "referenced_table": "DeptTest",
+          "referenced_column": "id"
+        }
+      ]
+    }
+  ]
+}
