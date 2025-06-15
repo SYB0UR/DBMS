@@ -52,16 +52,19 @@ class Table(Structure):
 # Получаем путь к папке, где находится этот скрипт
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
-# В зависимости от ОС выбираем имя библиотеки
-if sys.platform == "win32":
+# Кроссплатформенно определяем имя библиотеки
+if sys.platform.startswith("win"):
     libname = "mydb.dll"
+elif sys.platform.startswith("darwin"):
+    libname = "libmydb.dylib"
 else:
-    libname = "mydb.so"
+    libname = "libmydb.so"
 
-# Формируем полный путь к библиотеке
 lib_path = os.path.join(base_dir, libname)
 
-# Загружаем библиотеку
+if not os.path.exists(lib_path):
+    raise OSError(f"Не найден файл библиотеки: {lib_path}\nСкомпилируйте C-библиотеку для вашей ОС или скопируйте её в папку с этим скриптом.")
+
 lib = ctypes.cdll.LoadLibrary(lib_path)
 
 lib.transform_table.argtypes = [POINTER(Table), POINTER(Column), c_int]
