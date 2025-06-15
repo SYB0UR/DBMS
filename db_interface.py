@@ -2,6 +2,7 @@ import ctypes
 from ctypes import c_int, c_float, c_char_p, c_char, Structure, POINTER, Union, c_void_p
 import os
 import json
+import sys
 
 TYPE_INT    = 0
 TYPE_FLOAT  = 1
@@ -48,7 +49,20 @@ class Table(Structure):
         ("num_foreign_keys", c_int)
     ]
 
-lib = ctypes.cdll.LoadLibrary(os.path.abspath("C:\\Users\\darks\\OneDrive\\Desktop\\диплом\\mydb.dll"))
+# Получаем путь к папке, где находится этот скрипт
+base_dir = os.path.dirname(os.path.abspath(__file__))
+
+# В зависимости от ОС выбираем имя библиотеки
+if sys.platform == "win32":
+    libname = "mydb.dll"
+else:
+    libname = "mydb.so"
+
+# Формируем полный путь к библиотеке
+lib_path = os.path.join(base_dir, libname)
+
+# Загружаем библиотеку
+lib = ctypes.cdll.LoadLibrary(lib_path)
 
 lib.transform_table.argtypes = [POINTER(Table), POINTER(Column), c_int]
 lib.transform_table.restype  = POINTER(Table)
