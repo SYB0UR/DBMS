@@ -8,6 +8,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+
+#define FLOAT_EPSILON 1e-6
 
 // Глобальная переменная для хранения базы данных
 static Database* global_db = NULL;
@@ -195,7 +198,7 @@ API int check_foreign_key_constraint(Database* db, Table* table, int col_index, 
         }
         else if (table->columns[col_index].type == TYPE_FLOAT && 
                  ref_table->columns[ref_col_index].type == TYPE_FLOAT) {
-            if (value.f == ref_value.f) return 1;
+            if (fabs(value.f - ref_value.f) < FLOAT_EPSILON) return 1;
         }
         else if (table->columns[col_index].type == TYPE_STRING && 
                  ref_table->columns[ref_col_index].type == TYPE_STRING) {
@@ -255,6 +258,16 @@ static int check_foreign_key_value(Table* table, int col_index, DataValue value)
         if (table->columns[col_index].type == TYPE_INT && 
             ref_table->columns[ref_col_index].type == TYPE_INT) {
             if (value.i == ref_table->rows[i].values[ref_col_index].i) {
+                return 1;
+            }
+        } else if (table->columns[col_index].type == TYPE_FLOAT && 
+                   ref_table->columns[ref_col_index].type == TYPE_FLOAT) {
+            if (fabs(value.f - ref_table->rows[i].values[ref_col_index].f) < FLOAT_EPSILON) {
+                return 1;
+            }
+        } else if (table->columns[col_index].type == TYPE_STRING && 
+                   ref_table->columns[ref_col_index].type == TYPE_STRING) {
+            if (value.s && ref_table->rows[i].values[ref_col_index].s && strcmp(value.s, ref_table->rows[i].values[ref_col_index].s) == 0) {
                 return 1;
             }
         }

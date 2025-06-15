@@ -230,12 +230,31 @@ class TableManager(tk.Tk):
         parent.entry_vars = []
         parent.entry_labels = []
         parent.entry_entries = []
-        for col_def in table.columns_info:
+        # Получаем информацию о внешних ключах
+        fk_info = {fk['column']: fk for fk in table.get_foreign_keys()}
+        for idx, col_def in enumerate(table.columns_info):
             col_name, _ = col_def
             lbl = tk.Label(input_frame, text=f"{col_name}:")
             lbl.pack(side=tk.LEFT, padx=5)
             var = tk.StringVar()
-            ent = tk.Entry(input_frame, textvariable=var, width=10)
+            # Если столбец внешний ключ — делаем Combobox
+            if col_name in fk_info:
+                fk = fk_info[col_name]
+                ref_table_name = fk['referenced_table']
+                ref_col_name = fk['referenced_column']
+                ref_table = self.tables.get(ref_table_name)
+                values = []
+                if ref_table:
+                    col_idx = None
+                    for i, (n, _) in enumerate(ref_table.columns_info):
+                        if n == ref_col_name:
+                            col_idx = i
+                            break
+                    if col_idx is not None:
+                        values = [str(ref_table.get_value(row, col_idx)) for row in range(ref_table.get_num_rows())]
+                ent = ttk.Combobox(input_frame, textvariable=var, values=values, width=10, state="readonly")
+            else:
+                ent = tk.Entry(input_frame, textvariable=var, width=10)
             ent.pack(side=tk.LEFT, padx=5)
             parent.entry_vars.append(var)
             parent.entry_labels.append(lbl)
@@ -341,7 +360,7 @@ class TableManager(tk.Tk):
             menu.add_command(label=f"Переименовать столбец '{col_name}'", command=lambda: self.rename_column(parent, table, col_index))
             menu.tk_popup(event.x_root, event.y_root)
         parent.tree.bind("<Button-3>", on_heading_right_click)
-
+        
         parent.tree.bind("<Double-1>", lambda event, t=table, p=parent: self.on_cell_double_click(event, t, p))
     
     def insert_row_in_table(self, table, tab):
@@ -350,12 +369,22 @@ class TableManager(tk.Tk):
             col_name, col_type = col_def
             val = var.get().strip()
             try:
-                if col_type == TYPE_INT:
-                    values.append(int(val))
-                elif col_type == TYPE_FLOAT:
-                    values.append(float(val))
-                elif col_type == TYPE_STRING:
-                    values.append(val)
+                if val == '':
+                    if col_type == TYPE_INT:
+                        values.append(0)
+                    elif col_type == TYPE_FLOAT:
+                        values.append(0.0)
+                    elif col_type == TYPE_STRING:
+                        values.append('')
+                    else:
+                        values.append(None)
+                else:
+                    if col_type == TYPE_INT:
+                        values.append(int(val))
+                    elif col_type == TYPE_FLOAT:
+                        values.append(float(val))
+                    elif col_type == TYPE_STRING:
+                        values.append(val)
             except Exception:
                 messagebox.showerror("Ошибка", f"Неверное значение для столбца {col_name}")
                 return
@@ -364,6 +393,8 @@ class TableManager(tk.Tk):
         tab.original_rows_data = list(tab.rows_data)
         self.apply_active_sort(tab)
         self.refresh_table_tab(tab)
+        for var in tab.entry_vars:
+            var.set('')
     
     def delete_selected_row(self, table, tab):
         selected = tab.tree.selection()
@@ -420,6 +451,26 @@ class TableManager(tk.Tk):
         num_digits = len(str(max_num))
         num_width = max(MIN_NUM_WIDTH, 10 * num_digits + 16)
         tab.tree.column("№", width=num_width, anchor="center", stretch=False)
+
+        # --- Обновление значений в Combobox для внешних ключей ---
+        fk_info = {fk['column']: fk for fk in tab.dbtable.get_foreign_keys()}
+        for idx, (var, ent) in enumerate(zip(tab.entry_vars, tab.entry_entries)):
+            col_name, _ = tab.dbtable.columns_info[idx]
+            if col_name in fk_info and isinstance(ent, ttk.Combobox):
+                fk = fk_info[col_name]
+                ref_table_name = fk['referenced_table']
+                ref_col_name = fk['referenced_column']
+                ref_table = self.tables.get(ref_table_name)
+                values = []
+                if ref_table:
+                    col_idx = None
+                    for i, (n, _) in enumerate(ref_table.columns_info):
+                        if n == ref_col_name:
+                            col_idx = i
+                            break
+                    if col_idx is not None:
+                        values = [str(ref_table.get_value(row, col_idx)) for row in range(ref_table.get_num_rows())]
+                ent['values'] = values
     
     def add_column_in_table(self, table, tab):
         dialog = tk.Toplevel(self)
@@ -525,7 +576,7 @@ class TableManager(tk.Tk):
         edit.insert(0, current_value)
         edit.place(x=x, y=y, width=width, height=height)
         edit.focus_set()
-
+        
         def on_return(event):
             new_value = edit.get()
             old_rows = tab.dbtable.get_all_rows()
@@ -535,7 +586,7 @@ class TableManager(tk.Tk):
             if tab.rows_data[row_id][col_index - 1] == old_rows[row_id][col_index - 1]:
                 messagebox.showerror("Ошибка", f"Не удалось обновить ячейку ({row_id}, {col_index - 1}).")
             edit.destroy()
-
+        
         edit.bind("<Return>", on_return)
         edit.bind("<FocusOut>", lambda event: edit.destroy())
 
@@ -619,8 +670,7 @@ class TableManager(tk.Tk):
             try:
                 col_index = col_names.index(col_name)
             except ValueError:
-                print(f"Column '{col_name}' not found in {col_names}")
-                return
+                pass
             for row in all_rows:
                 if query.lower() in str(row[col_index]).lower():
                     filtered.append(row)
@@ -838,6 +888,7 @@ class TableManager(tk.Tk):
             if ret == 0:
                 messagebox.showinfo("Success", "Foreign key added successfully")
                 dialog.destroy()
+                self.recreate_table_tab(parent, table)
             else:
                 messagebox.showerror("Error", "Failed to add foreign key")
 
@@ -873,6 +924,7 @@ class TableManager(tk.Tk):
             if ret == 0:
                 messagebox.showinfo("Success", "Foreign key removed successfully")
                 dialog.destroy()
+                self.recreate_table_tab(parent, table)
             else:
                 messagebox.showerror("Error", "Failed to remove foreign key")
 
@@ -1005,48 +1057,6 @@ class TableManager(tk.Tk):
                     os.remove(os.path.join(backup_dir, old))
                 except Exception:
                     pass
-
-    def recreate_input_row(self, tab, table):
-        # Удаляем старые виджеты ввода
-        if hasattr(tab, 'entry_labels'):
-            for lbl in tab.entry_labels:
-                lbl.destroy()
-        if hasattr(tab, 'entry_entries'):
-            for ent in tab.entry_entries:
-                ent.destroy()
-        tab.entry_vars = []
-        tab.entry_labels = []
-        tab.entry_entries = []
-        # Находим input_frame (он всегда первый child input_canvas)
-        input_canvas = None
-        for child in tab.winfo_children():
-            if isinstance(child, tk.Canvas):
-                input_canvas = child
-                break
-        if input_canvas is None:
-            return
-        input_frame = None
-        for item in input_canvas.find_all():
-            widget = input_canvas.itemcget(item, 'window')
-            if widget:
-                input_frame = input_canvas.nametowidget(widget)
-                break
-        if input_frame is None:
-            return
-        # Очищаем input_frame
-        for widget in input_frame.winfo_children():
-            widget.destroy()
-        # Пересоздаём поля ввода
-        for col_def in table.columns_info:
-            col_name, _ = col_def
-            lbl = tk.Label(input_frame, text=f"{col_name}:")
-            lbl.pack(side=tk.LEFT, padx=5)
-            var = tk.StringVar()
-            ent = tk.Entry(input_frame, textvariable=var, width=10)
-            ent.pack(side=tk.LEFT, padx=5)
-            tab.entry_vars.append(var)
-            tab.entry_labels.append(lbl)
-            tab.entry_entries.append(ent)
 
 class TableTab(tk.Frame):
     def __init__(self, master, table_name, columns):
