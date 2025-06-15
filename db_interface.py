@@ -275,6 +275,7 @@ class DBTable:
             messagebox.showerror("Ошибка", "Не удалось добавить столбец в таблицу.")
             return ret
         self.columns_info.append((col_name, new_type))
+        self.num_columns = len(self.columns_info)
         return 0
 
 
@@ -288,6 +289,7 @@ class DBTable:
             messagebox.showerror("Ошибка", "Не удалось удалить столбец из таблицы.")
         else:
             self.columns_info = [col for col in self.columns_info if col[0] != col_name]
+            self.num_columns = len(self.columns_info)
         return ret
 
     def get_value(self, row_idx, col_idx):

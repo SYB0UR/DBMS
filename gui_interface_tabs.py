@@ -229,14 +229,17 @@ class TableManager(tk.Tk):
         
         parent.entry_vars = []
         parent.entry_labels = []
+        parent.entry_entries = []
         for col_def in table.columns_info:
             col_name, _ = col_def
             lbl = tk.Label(input_frame, text=f"{col_name}:")
             lbl.pack(side=tk.LEFT, padx=5)
             var = tk.StringVar()
-            tk.Entry(input_frame, textvariable=var, width=10).pack(side=tk.LEFT, padx=5)
+            ent = tk.Entry(input_frame, textvariable=var, width=10)
+            ent.pack(side=tk.LEFT, padx=5)
             parent.entry_vars.append(var)
             parent.entry_labels.append(lbl)
+            parent.entry_entries.append(ent)
 
         # --- КНОПКИ ---
         if self.buttons_position == "top":
@@ -1002,6 +1005,48 @@ class TableManager(tk.Tk):
                     os.remove(os.path.join(backup_dir, old))
                 except Exception:
                     pass
+
+    def recreate_input_row(self, tab, table):
+        # Удаляем старые виджеты ввода
+        if hasattr(tab, 'entry_labels'):
+            for lbl in tab.entry_labels:
+                lbl.destroy()
+        if hasattr(tab, 'entry_entries'):
+            for ent in tab.entry_entries:
+                ent.destroy()
+        tab.entry_vars = []
+        tab.entry_labels = []
+        tab.entry_entries = []
+        # Находим input_frame (он всегда первый child input_canvas)
+        input_canvas = None
+        for child in tab.winfo_children():
+            if isinstance(child, tk.Canvas):
+                input_canvas = child
+                break
+        if input_canvas is None:
+            return
+        input_frame = None
+        for item in input_canvas.find_all():
+            widget = input_canvas.itemcget(item, 'window')
+            if widget:
+                input_frame = input_canvas.nametowidget(widget)
+                break
+        if input_frame is None:
+            return
+        # Очищаем input_frame
+        for widget in input_frame.winfo_children():
+            widget.destroy()
+        # Пересоздаём поля ввода
+        for col_def in table.columns_info:
+            col_name, _ = col_def
+            lbl = tk.Label(input_frame, text=f"{col_name}:")
+            lbl.pack(side=tk.LEFT, padx=5)
+            var = tk.StringVar()
+            ent = tk.Entry(input_frame, textvariable=var, width=10)
+            ent.pack(side=tk.LEFT, padx=5)
+            tab.entry_vars.append(var)
+            tab.entry_labels.append(lbl)
+            tab.entry_entries.append(ent)
 
 class TableTab(tk.Frame):
     def __init__(self, master, table_name, columns):
