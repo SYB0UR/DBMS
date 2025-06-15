@@ -1,10 +1,14 @@
 #ifndef DB_CORE_H
 #define DB_CORE_H
 
-#ifdef BUILD_DLL
-#define API __declspec(dllexport)
+#ifdef _WIN32
+  #ifdef BUILD_DLL
+    #define API __declspec(dllexport)
+  #else
+    #define API __declspec(dllimport)
+  #endif
 #else
-#define API __declspec(dllimport)
+  #define API
 #endif
 
 #include <stdio.h>
