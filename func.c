@@ -662,12 +662,16 @@ API int insert_row(Table* table, DataValue* values) {
 
     // Копируем значения
     for (int i = 0; i < table->num_columns; i++) {
-        if (table->columns[i].type == TYPE_STRING && values[i].s) {
-            size_t len = strlen(values[i].s);
-            new_row.values[i].s = (char*)malloc(len + 1);
-            if (new_row.values[i].s) {
-                strncpy(new_row.values[i].s, values[i].s, len);
-                new_row.values[i].s[len] = '\0';
+        if (table->columns[i].type == TYPE_STRING) {
+            if (values[i].s) {
+                size_t len = strlen(values[i].s);
+                new_row.values[i].s = (char*)malloc(len + 1);
+                if (new_row.values[i].s) {
+                    strncpy(new_row.values[i].s, values[i].s, len);
+                    new_row.values[i].s[len] = '\0';
+                }
+            } else {
+                new_row.values[i].s = NULL;
             }
         } else {
             new_row.values[i] = values[i];

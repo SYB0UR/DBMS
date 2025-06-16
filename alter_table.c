@@ -25,6 +25,9 @@ API int add_column(Table* table, const char* col_name, int new_type, DataValue d
     memset(new_columns[old_cols].name, 0, sizeof(new_columns[old_cols].name));
     strncpy(new_columns[old_cols].name, col_name, sizeof(new_columns[old_cols].name)-1);
     new_columns[old_cols].type = new_type;
+    new_columns[old_cols].is_primary_key = 0;
+    new_columns[old_cols].is_foreign_key = 0;
+    new_columns[old_cols].foreign_key = NULL;
     
     // Обновляем таблицу
     free(table->columns);
@@ -45,13 +48,29 @@ API int add_column(Table* table, const char* col_name, int new_type, DataValue d
          }
          // Устанавливаем значение по умолчанию для нового столбца
          if (new_type == TYPE_STRING) {
-              new_values[old_cols].s = strdup(default_value.s);
+              if (default_value.s != NULL) {
+                  new_values[old_cols].s = strdup(default_value.s);
+              } else {
+                  new_values[old_cols].s = NULL;
+              }
          } else {
               new_values[old_cols] = default_value;
          }
          
          free(old_values);
          table->rows[i].values = new_values;
+    }
+    // Обновляем индексы внешних ключей (если есть)
+    if (table->num_foreign_keys > 0 && table->foreign_keys != NULL) {
+        for (int fk_idx = 0; fk_idx < table->num_foreign_keys; fk_idx++) {
+            ForeignKey* fk = table->foreign_keys[fk_idx];
+            // Если внешний ключ указывает на столбец, который был сдвинут, обновляем индекс
+            // (т.к. мы добавляем только в конец, индексы не сдвигаются, но если будет вставка не в конец — нужно будет обновлять)
+            // Здесь просто проверяем, что индекс не выходит за границы
+            if (fk->column_index >= old_cols) {
+                fk->column_index = old_cols; // Новый столбец
+            }
+        }
     }
     return 0;
 }
