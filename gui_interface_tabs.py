@@ -8,21 +8,26 @@ import shutil
 import threading
 import time
 
+try:
+    from ttkthemes import ThemedTk
+    _USE_THEMED = True
+except ImportError:
+    _USE_THEMED = False
+
 MIN_NUM_WIDTH = 40  # Минимальная ширина для столбца "№"
 
-class TableManager(tk.Tk):
+class TableManager:
     def __init__(self):
-        super().__init__()
-        self.title("СУБД с вкладками")
-        self.geometry("900x700")
-        
-        self.tables = {}      
-        self.table_tabs = {}  
-        self.buttons_position = "top"  # top или bottom
-        
-        # --- Меню ---
-        menubar = tk.Menu(self)
-        
+        if _USE_THEMED:
+            self.root = ThemedTk(theme="breeze")
+        else:
+            self.root = tk.Tk()
+        self.root.title("СУБД с вкладками")
+        self.root.geometry("900x700")
+        self.tables = {}
+        self.table_tabs = {}
+        self.buttons_position = "top"
+        menubar = tk.Menu(self.root)
         # Меню файл
         file_menu = tk.Menu(menubar, tearoff=0)
         file_menu.add_command(label="Сохранить базу данных", command=self.save_database)
@@ -30,54 +35,77 @@ class TableManager(tk.Tk):
         file_menu.add_separator()
         file_menu.add_command(label="Сделать резервную копию", command=self.make_backup)
         menubar.add_cascade(label="Файл", menu=file_menu)
-        
         # Меню настроек
         settings_menu = tk.Menu(menubar, tearoff=0)
         self.buttons_position_var = tk.StringVar(value=self.buttons_position)
         settings_menu.add_radiobutton(label="Кнопки сверху", variable=self.buttons_position_var, value="top", command=self.update_buttons_position)
         settings_menu.add_radiobutton(label="Кнопки снизу", variable=self.buttons_position_var, value="bottom", command=self.update_buttons_position)
         menubar.add_cascade(label="Настройки", menu=settings_menu)
-        self.config(menu=menubar)
-        
-        self.notebook = ttk.Notebook(self)
+        self.root.config(menu=menubar)
+        # --- Слегка синий фон, чёрный текст, современный шрифт ---
+        style = ttk.Style(self.root)
+        if _USE_THEMED:
+            style.theme_use("breeze")
+        # Основной фон
+        light_bg = "#eaf6fb"
+        accent = "#0099cc"
+        accent2 = "#4dd2ff"
+        text = "#22223b"  # чёрный/тёмно-синий
+        font_main = ("Segoe UI", 12)
+        font_bold = ("Segoe UI", 12, "bold")
+        self.root.configure(bg=light_bg)
+        style.configure("TFrame", background=light_bg)
+        style.configure("TLabel", background=light_bg, foreground=text, font=font_main)
+        style.configure("TNotebook", background=light_bg)
+        style.configure("TNotebook.Tab", background=light_bg, foreground=text, font=font_main)
+        style.map("TNotebook.Tab", background=[("selected", accent2)])
+        # Кнопки
+        style.configure("TButton", background=accent, foreground=text, borderwidth=0, focusthickness=3, focuscolor=accent2, font=font_main)
+        style.map("TButton",
+                  background=[("active", accent2), ("pressed", accent)],
+                  foreground=[("disabled", "#888"), ("pressed", text)])
+        # Treeview (таблица)
+        style.configure("Treeview", background="#fff", fieldbackground=light_bg, foreground=text, borderwidth=0, font=font_main)
+        style.map("Treeview", background=[("selected", accent2)])
+        style.configure("Treeview.Heading", background=accent, foreground=text, font=font_bold)
+        # Entry
+        style.configure("TEntry", fieldbackground="#fff", foreground=text, insertcolor=text, font=font_main)
+        # Notebook
+        self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True)
-        
-        # Привязываем обработчик правого клика по вкладке
         self.notebook.bind('<Button-3>', self.on_tab_right_click)
-        
         self.manage_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.manage_tab, text="Управление таблицами")
         self.create_manage_tab(self.manage_tab)
-        
-        self.backup_interval = 5 * 60  # 5 минут в секундах
+        self.backup_interval = 5 * 60
         self.backup_thread = threading.Thread(target=self._auto_backup_loop, daemon=True)
         self.backup_thread.start()
     
     def create_manage_tab(self, parent):
-        tk.Label(parent, text="Список таблиц:").pack(pady=5)
+        ttk.Label(parent, text="Список таблиц:").pack(pady=5)
         self.table_listbox = tk.Listbox(parent, height=8)
         self.table_listbox.pack(fill=tk.X, padx=10)
         
-        btn_frame = tk.Frame(parent)
+        btn_frame = ttk.Frame(parent)
         btn_frame.pack(pady=10)
-        tk.Button(btn_frame, text="Создать таблицу", command=self.create_table_dialog).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Открыть таблицу", command=self.open_table).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Удалить таблицу", command=self.delete_table).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Создать таблицу", command=self.create_table_dialog).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Открыть таблицу", command=self.open_table).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Удалить таблицу", command=self.delete_table).pack(side=tk.LEFT, padx=5)
     
     def create_table_dialog(self):
-        dialog = tk.Toplevel(self)
+        dialog = tk.Toplevel(self.root)
         dialog.title("Создание новой таблицы")
         dialog.geometry("400x350")
         
-        tk.Label(dialog, text="Название таблицы:").pack(pady=5)
-        entry_table_name = tk.Entry(dialog)
+        ttk.Label(dialog, text="Название таблицы:").pack(pady=5)
+        entry_table_name = ttk.Entry(dialog)
         entry_table_name.pack(pady=5)
         
-        tk.Label(dialog, text="Количество столбцов:").pack(pady=5)
-        entry_columns_count = tk.Entry(dialog)
+        ttk.Label(dialog, text="Количество столбцов:").pack(pady=5)
+        entry_columns_count = ttk.Entry(dialog)
         entry_columns_count.pack(pady=5)
         
-        columns_frame = tk.Frame(dialog)
+        columns_frame = ttk.Frame(dialog)
         columns_frame.pack(pady=10, fill=tk.BOTH, expand=True)
         
         def on_columns_count():
@@ -87,19 +115,19 @@ class TableManager(tk.Tk):
                     widget.destroy()
                 self.column_entries = []
                 for i in range(count):
-                    row_frame = tk.Frame(columns_frame)
+                    row_frame = ttk.Frame(columns_frame)
                     row_frame.pack(pady=2, fill=tk.X, padx=10)
-                    tk.Label(row_frame, text=f"Столбец {i+1} имя:").pack(side=tk.LEFT)
-                    entry_name = tk.Entry(row_frame, width=12)
+                    ttk.Label(row_frame, text=f"Столбец {i+1} имя:").pack(side=tk.LEFT)
+                    entry_name = ttk.Entry(row_frame, width=12)
                     entry_name.pack(side=tk.LEFT, padx=5)
-                    tk.Label(row_frame, text="Тип:").pack(side=tk.LEFT)
+                    ttk.Label(row_frame, text="Тип:").pack(side=tk.LEFT)
                     combo_type = ttk.Combobox(row_frame, values=["int", "float", "string"], width=10)
                     combo_type.pack(side=tk.LEFT, padx=5)
                     self.column_entries.append((entry_name, combo_type))
             except ValueError:
                 messagebox.showerror("Ошибка", "Введите корректное число столбцов.")
         
-        tk.Button(dialog, text="Указать столбцы", command=on_columns_count).pack(pady=5)
+        ttk.Button(dialog, text="Указать столбцы", command=on_columns_count).pack(pady=5)
         
         def on_create():
             table_name = entry_table_name.get().strip()
@@ -140,7 +168,7 @@ class TableManager(tk.Tk):
             messagebox.showinfo("Успех", f"Таблица {table_name} создана!")
             dialog.destroy()
         
-        tk.Button(dialog, text="Создать таблицу", command=on_create).pack(pady=10)
+        ttk.Button(dialog, text="Создать таблицу", command=on_create).pack(pady=10)
     
     def on_tab_right_click(self, event):
         """Обработчик правого клика по вкладке"""
@@ -152,7 +180,7 @@ class TableManager(tk.Tk):
             # Если это не вкладка управления таблицами
             if tab_text != "Управление таблицами":
                 # Создаем контекстное меню
-                menu = tk.Menu(self, tearoff=0)
+                menu = tk.Menu(self.root, tearoff=0)
                 menu.add_command(label="Закрыть", command=lambda: self.close_tab_by_index(index))
                 menu.post(event.x_root, event.y_root)
     
@@ -234,7 +262,7 @@ class TableManager(tk.Tk):
         fk_info = {fk['column']: fk for fk in table.get_foreign_keys()}
         for idx, col_def in enumerate(table.columns_info):
             col_name, _ = col_def
-            lbl = tk.Label(input_frame, text=f"{col_name}:")
+            lbl = ttk.Label(input_frame, text=f"{col_name}:")
             lbl.pack(side=tk.LEFT, padx=5)
             var = tk.StringVar()
             # Если столбец внешний ключ — делаем Combobox
@@ -473,15 +501,15 @@ class TableManager(tk.Tk):
                 ent['values'] = values
     
     def add_column_in_table(self, table, tab):
-        dialog = tk.Toplevel(self)
+        dialog = tk.Toplevel(self.root)
         dialog.title("Добавление столбца")
         dialog.geometry("300x200")
         
-        tk.Label(dialog, text="Имя столбца:").pack(pady=5)
-        entry_col_name = tk.Entry(dialog)
+        ttk.Label(dialog, text="Имя столбца:").pack(pady=5)
+        entry_col_name = ttk.Entry(dialog)
         entry_col_name.pack(pady=5)
         
-        tk.Label(dialog, text="Тип (int, float, string):").pack(pady=5)
+        ttk.Label(dialog, text="Тип (int, float, string):").pack(pady=5)
         combo_col_type = ttk.Combobox(dialog, values=["int", "float", "string"], width=10)
         combo_col_type.pack(pady=5)
         
@@ -517,14 +545,14 @@ class TableManager(tk.Tk):
             self.recreate_table_tab(tab, table)
             dialog.destroy()
         
-        tk.Button(dialog, text="Добавить", command=on_add).pack(pady=10)
+        ttk.Button(dialog, text="Добавить", command=on_add).pack(pady=10)
     
     def delete_column_in_table(self, table, tab):
-        dialog = tk.Toplevel(self)
+        dialog = tk.Toplevel(self.root)
         dialog.title("Удаление столбца")
         dialog.geometry("300x150")
         
-        tk.Label(dialog, text="Выберите столбец для удаления:").pack(pady=5)
+        ttk.Label(dialog, text="Выберите столбец для удаления:").pack(pady=5)
         col_names = [col_def[0] for col_def in table.columns_info]
         combo = ttk.Combobox(dialog, values=col_names, state="readonly")
         combo.pack(pady=5)
@@ -544,7 +572,7 @@ class TableManager(tk.Tk):
             if len(table.columns_info) == old_count:
                 messagebox.showerror("Ошибка", "Не удалось удалить столбец из таблицы.")
         
-        tk.Button(dialog, text="Удалить", command=on_delete).pack(pady=10)
+        ttk.Button(dialog, text="Удалить", command=on_delete).pack(pady=10)
     
     def recreate_table_tab(self, tab, table):
         for widget in tab.winfo_children():
@@ -814,24 +842,24 @@ class TableManager(tk.Tk):
 
     def add_foreign_key_dialog(self, table, parent):
         """Диалог добавления внешнего ключа"""
-        dialog = tk.Toplevel(self)
+        dialog = tk.Toplevel(self.root)
         dialog.title("Add Foreign Key")
         dialog.geometry("400x300")
 
         # Выбор столбца текущей таблицы
-        tk.Label(dialog, text="Select column:").pack(pady=5)
+        ttk.Label(dialog, text="Select column:").pack(pady=5)
         col_names = [col_def[0] for col_def in table.columns_info]
         col_combo = ttk.Combobox(dialog, values=col_names, state="readonly")
         col_combo.pack(pady=5)
 
         # Выбор таблицы для связи
-        tk.Label(dialog, text="Select referenced table:").pack(pady=5)
+        ttk.Label(dialog, text="Select referenced table:").pack(pady=5)
         ref_tables = [name for name in self.tables.keys() if name != table.name.decode("utf-8")]
         ref_table_combo = ttk.Combobox(dialog, values=ref_tables, state="readonly")
         ref_table_combo.pack(pady=5)
 
         # Выбор столбца в связанной таблице
-        tk.Label(dialog, text="Select referenced column:").pack(pady=5)
+        ttk.Label(dialog, text="Select referenced column:").pack(pady=5)
         ref_col_combo = ttk.Combobox(dialog, state="readonly")
         ref_col_combo.pack(pady=5)
 
@@ -892,11 +920,11 @@ class TableManager(tk.Tk):
             else:
                 messagebox.showerror("Error", "Failed to add foreign key")
 
-        tk.Button(dialog, text="Add", command=on_add).pack(pady=10)
+        ttk.Button(dialog, text="Add", command=on_add).pack(pady=10)
 
     def remove_foreign_key_dialog(self, table, parent):
         """Диалог удаления внешнего ключа"""
-        dialog = tk.Toplevel(self)
+        dialog = tk.Toplevel(self.root)
         dialog.title("Remove Foreign Key")
         dialog.geometry("300x150")
 
@@ -910,7 +938,7 @@ class TableManager(tk.Tk):
             dialog.destroy()
             return
 
-        tk.Label(dialog, text="Select foreign key to remove:").pack(pady=5)
+        ttk.Label(dialog, text="Select foreign key to remove:").pack(pady=5)
         col_combo = ttk.Combobox(dialog, values=fk_columns, state="readonly")
         col_combo.pack(pady=5)
 
@@ -928,7 +956,7 @@ class TableManager(tk.Tk):
             else:
                 messagebox.showerror("Error", "Failed to remove foreign key")
 
-        tk.Button(dialog, text="Remove", command=on_remove).pack(pady=10)
+        ttk.Button(dialog, text="Remove", command=on_remove).pack(pady=10)
 
     def show_foreign_keys(self, table):
         """Показать информацию о внешних ключах"""
@@ -938,7 +966,7 @@ class TableManager(tk.Tk):
             return
 
         # Создаем окно с информацией
-        dialog = tk.Toplevel(self)
+        dialog = tk.Toplevel(self.root)
         dialog.title("Foreign Keys")
         dialog.geometry("400x300")
 
@@ -1058,6 +1086,9 @@ class TableManager(tk.Tk):
                 except Exception:
                     pass
 
+    def run(self):
+        self.root.mainloop()
+
 class TableTab(tk.Frame):
     def __init__(self, master, table_name, columns):
         super().__init__(master)
@@ -1065,7 +1096,7 @@ class TableTab(tk.Frame):
         
         self.row_entry = tk.Entry(self, width=5)
         self.row_entry.pack(side=tk.LEFT, padx=5)
-        tk.Label(self, text="Номер строки (1-based) для удаления").pack(side=tk.LEFT)
+        ttk.Label(self, text="Номер строки (1-based) для удаления").pack(side=tk.LEFT)
         tk.Button(self, text="Удалить строку", command=self.delete_selected_row).pack(side=tk.LEFT, padx=10)
         
         tk.Button(self, text="Вывести таблицу", command=self.refresh_table).pack(side=tk.LEFT, padx=10)
@@ -1099,4 +1130,4 @@ class TableTab(tk.Frame):
 
 if __name__ == "__main__":
     app = TableManager()
-    app.mainloop()
+    app.run()
